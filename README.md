@@ -45,7 +45,9 @@ Inspired by tools like `htop` and `top`, this project emphasizes **zero-copy sli
 
 - **Two-Sample Delta CPU% Engine**:
   - Calculates true instantaneous CPU load using consecutive temporal snapshots:
-    $$\Delta \text{CPU\%} = \frac{\Delta \text{ticks}}{\text{CLK\_TCK} \times \Delta t} \times 100$$
+    ```text
+    ΔCPU% = (Δticks / (CLK_TCK × Δt)) × 100
+    ```
   - Uses `Instant::now()` and `std::time::Instant` elapsed intervals.
   - Applies `.saturating_sub()` to protect against counter wrap-around or clock skew underflow panics.
 
