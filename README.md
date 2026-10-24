@@ -3,7 +3,7 @@
 [![Rust 2024](https://img.shields.io/badge/Rust-2024_Edition-orange.svg?logo=rust)](https://www.rust-lang.org)
 [![Platform Linux](https://img.shields.io/badge/Platform-Linux-blue.svg?logo=linux)](https://kernel.org)
 [![TUI Ratatui](https://img.shields.io/badge/TUI-Ratatui_0.30-purple.svg)](https://ratatui.rs)
-[![Tests Passing](https://img.shields.io/badge/Tests-28%20Passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/Tests-29%20Passed-brightgreen.svg)]()
 [![License MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A high-performance, real-time interactive terminal process viewer and system monitor built from scratch in **Rust** using Linux kernel pseudo-filesystems (`/proc`), [`ratatui`](https://ratatui.rs), and [`crossterm`](https://github.com/crossterm-rs/crossterm).
@@ -70,10 +70,12 @@ Inspired by tools like `htop` and `top`, this project emphasizes **zero-copy sli
 
 | Key | Action | Description |
 | :--- | :--- | :--- |
-| **`q`** | **Quit** | Exits the event loop and restores terminal state cleanly |
+| **`q`** or **`Esc`** | **Quit** | Exits the event loop and restores terminal state cleanly |
 | **`s`** | **Cycle Sort** | Cycles sort column: `CPU%` $\rightarrow$ `MEM` $\rightarrow$ `PID` $\rightarrow$ `NAME` |
 | **`↑`** or **`k`** | **Navigate Up** | Moves the selected process row cursor upward |
 | **`↓`** or **`j`** | **Navigate Down** | Moves the selected process row cursor downward (clamped) |
+| **`Home`** or **`g`** | **Jump to Top** | Jumps directly to the first process row |
+| **`End`** or **`G`** | **Jump to Bottom** | Jumps directly to the last process row |
 
 ---
 
@@ -164,7 +166,8 @@ cargo test
 ```
 
 ```text
-running 28 tests
+running 29 tests
+test app::tests::test_app_default ... ok
 test app::tests::test_app_navigation_clamping ... ok
 test app::tests::test_app_quit ... ok
 test app::tests::test_sort_column_cycle ... ok

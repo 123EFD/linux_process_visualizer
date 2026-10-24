@@ -1,13 +1,13 @@
-use std::io::{stdout, Stdout};
+use std::io::{Stdout, stdout};
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use linux_process_visualizer::app::App;
 
@@ -44,17 +44,20 @@ fn run_app(
         app.on_tick();
         terminal.draw(|f| linux_process_visualizer::ui::render(f, app))?;
 
-        if event::poll(Duration::from_millis(1000))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == crossterm::event::KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') => app.quit(),
-                        KeyCode::Char('s') => app.cycle_sort(),
-                        KeyCode::Down | KeyCode::Char('j') => app.next_row(),
-                        KeyCode::Up | KeyCode::Char('k') => app.previous_row(),
-                        _ => {}
-                    }
+        if event::poll(Duration::from_millis(1000))?
+            && let Event::Key(key) = event::read()?
+            && key.kind == crossterm::event::KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Esc => app.quit(),
+                KeyCode::Char('s') => app.cycle_sort(),
+                KeyCode::Down | KeyCode::Char('j') => app.next_row(),
+                KeyCode::Up | KeyCode::Char('k') => app.previous_row(),
+                KeyCode::Home | KeyCode::Char('g') => app.selected_index = 0,
+                KeyCode::End | KeyCode::Char('G') if !app.processes.is_empty() => {
+                    app.selected_index = app.processes.len() - 1;
                 }
+                _ => {}
             }
         }
     }
@@ -70,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = run_app(&mut terminal, &mut app);
 
     // Clean up terminal unconditionally after event loop ends:
-    restore_terminal()?;
+    let restore_result = restore_terminal();
 
-    result
+    result.and(restore_result)
 }

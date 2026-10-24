@@ -106,7 +106,7 @@ pub fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         .height(1)
         .bottom_margin(1);
 
-    let rows : Vec<Row> = app
+    let rows: Vec<Row> = app
         .processes
         .iter()
         .map(|p| {
@@ -132,13 +132,19 @@ pub fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         Constraint::Min(20),
     ];
 
-    let table = Table::new(rows,widths)
+    let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title(format!(
-            " Processes ({}) ",
-            app.processes.len()
-        )))
-        .row_highlight_style(Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::BOLD))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" Processes ({}) ", app.processes.len())),
+        )
+        .row_highlight_style(
+            Style::default()
+                .bg(Color::Blue)
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol(">> ");
 
     let mut state = TableState::default();
@@ -146,7 +152,6 @@ pub fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         state.select(Some(app.selected_index));
     }
     frame.render_stateful_widget(table, area, &mut state);
-
 }
 
 /// Step 3.5: Renders the Footer block with keyboard shortcuts and sort status.
@@ -177,7 +182,14 @@ pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw("Down"),
+        Span::raw("Down  "),
+        Span::styled(
+            " [g/G] ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw("Top/End"),
     ]);
 
     let footer_block = Block::default().borders(Borders::ALL).title(" Controls ");

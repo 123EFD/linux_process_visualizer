@@ -32,7 +32,7 @@ impl ProcessState {
             't' => ProcessState::TracingStop,
             'I' => ProcessState::Idle,
             _ => ProcessState::Unknown(ch),
-        }    
+        }
     }
 }
 
@@ -51,26 +51,29 @@ pub struct ProcessStat {
 
 impl ProcessStat {
     pub fn total_cpu_ticks(&self) -> u64 {
-        return self.utime + self.stime;
+        self.utime + self.stime
     }
 
     pub fn rss_bytes(&self) -> u64 {
-        return self.rss_pages * PAGE_SIZE as u64;
+        self.rss_pages * PAGE_SIZE
     }
 
     pub fn rss_kb(&self) -> u64 {
-        return self.rss_bytes() / 1024;
+        self.rss_bytes() / 1024
     }
 }
 
 pub fn parse_stat(content: &str) -> Result<ProcessStat, String> {
     let start = content.find('(').ok_or("Missing '(' ")?;
     let end = content.rfind(')').ok_or("Missing ')' ")?;
-    let pid = content[..start].trim().parse::<u32>().map_err(|_| "Failed to parse pid")?;
+    let pid = content[..start]
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| "Failed to parse pid")?;
     let name = content[start + 1..end].to_string();
     let rest = &content[end + 1..];
 
-    let fields : Vec<&str> = rest.split_whitespace().collect();
+    let fields: Vec<&str> = rest.split_whitespace().collect();
     if fields.len() < 22 {
         return Err("Not enough fields".to_string());
     }
@@ -82,13 +85,22 @@ pub fn parse_stat(content: &str) -> Result<ProcessStat, String> {
     let threads = fields[17].parse::<u64>().map_err(|_| "Invalid threads")?;
     let rss_pages = fields[21].parse::<u64>().map_err(|_| "Invalid rss")?;
 
-    Ok(ProcessStat { pid, name, state, ppid, utime, stime, threads, rss_pages })
+    Ok(ProcessStat {
+        pid,
+        name,
+        state,
+        ppid,
+        utime,
+        stime,
+        threads,
+        rss_pages,
+    })
 }
 
 pub fn read_stat(pid: u32) -> Result<ProcessStat, String> {
     let path = format!("/proc/{}/stat", pid);
-    let content = fs::read_to_string(&path)
-        .map_err(|err| format!("Failed to read {}: {}", path, err))?;
+    let content =
+        fs::read_to_string(&path).map_err(|err| format!("Failed to read {}: {}", path, err))?;
     parse_stat(&content)
 }
 
@@ -99,7 +111,7 @@ pub struct ProcessInfo {
 }
 
 pub fn parse_cmdline(content: &str, fallback_name: &str) -> String {
-    let arg : Vec<&str> = content.split('\0').filter(|s| !s.is_empty()).collect();
+    let arg: Vec<&str> = content.split('\0').filter(|s| !s.is_empty()).collect();
     let joined = arg.join(" ");
     if joined.is_empty() {
         format!("[{}]", fallback_name)
@@ -122,19 +134,15 @@ pub fn collect_process_info(pid: u32) -> Result<ProcessInfo, String> {
     Ok(ProcessInfo { stat, cmdline })
 }
 
-
 pub fn list_pids() -> Result<Vec<u32>, String> {
-
     let entries = fs::read_dir("/proc").map_err(|e| format!("Failed to read /proc: {}", e))?;
-    let mut pids  = Vec::new();
-    for entry in entries { 
+    let mut pids = Vec::new();
+    for entry in entries {
         let entry = entry.map_err(|e| e.to_string())?;
-        if entry.path().is_dir() {
-            if let Some(name) = entry.file_name().to_str() {
-                if let Ok(pid) = name.parse::<u32>() {
-                    pids.push(pid);
-                }
-            }
+        if entry.path().is_dir()
+            && let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>()
+        {
+            pids.push(pid);
         }
     }
     pids.sort();
@@ -237,7 +245,10 @@ mod tests {
     #[test]
     fn test_parse_cmdline_multiple_args() {
         let sample = "python3\0server.py\0--port\08080\0";
-        assert_eq!(parse_cmdline(sample, "python3"), "python3 server.py --port 8080");
+        assert_eq!(
+            parse_cmdline(sample, "python3"),
+            "python3 server.py --port 8080"
+        );
     }
 
     #[test]

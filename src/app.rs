@@ -1,7 +1,7 @@
 use std::time::Instant;
 
-use crate::process::{self, ProcessState, ProcessTracker};
 use crate::SystemOverview;
+use crate::process::{self, ProcessState, ProcessTracker};
 
 /// Represents the active column used for sorting the process table.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -84,14 +84,13 @@ impl App {
                 });
             }
             SortColumn::Memory => {
-                self.processes.sort_by(|a, b| b.rss_kb.cmp(&a.rss_kb));
+                self.processes.sort_by_key(|p| std::cmp::Reverse(p.rss_kb));
             }
             SortColumn::Pid => {
                 self.processes.sort_by_key(|p| p.pid);
             }
             SortColumn::Name => {
-                self.processes
-                    .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+                self.processes.sort_by_key(|p| p.name.to_lowercase());
             }
         }
     }
@@ -129,6 +128,17 @@ impl App {
             self.tracker.cleanup_vanished(&active_pids);
         }
         self.sort_processes();
+
+        // Ensure selection cursor stays clamped if processes terminated:
+        if !self.processes.is_empty() && self.selected_index >= self.processes.len() {
+            self.selected_index = self.processes.len() - 1;
+        }
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -254,5 +264,13 @@ mod tests {
         assert_eq!(app.processes[0].name, "Alacritty");
         assert_eq!(app.processes[1].name, "bash");
         assert_eq!(app.processes[2].name, "cargo");
+    }
+
+    #[test]
+    fn test_app_default() {
+        let app = App::default();
+        assert_eq!(app.sort_by, SortColumn::Cpu);
+        assert_eq!(app.selected_index, 0);
+        assert!(!app.should_quit);
     }
 }

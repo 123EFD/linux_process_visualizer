@@ -1,7 +1,7 @@
 use std::fs;
 
-pub mod process;
 pub mod app;
+pub mod process;
 pub mod ui;
 
 // ==========================================
@@ -11,7 +11,9 @@ pub mod ui;
 pub fn parse_uptime(content: &str) -> Result<f64, String> {
     let mut parts = content.split_whitespace();
     let first_part = parts.next().ok_or("No first part".to_string())?;
-    let seconds = first_part.parse::<f64>().map_err(|_| "Invalid number".to_string())?;
+    let seconds = first_part
+        .parse::<f64>()
+        .map_err(|_| "Invalid number".to_string())?;
     Ok(seconds)
 }
 
@@ -48,9 +50,15 @@ pub fn parse_loadavg(content: &str) -> Result<LoadAvg, String> {
     let third_part = parts.next().ok_or("No third part".to_string())?;
 
     Ok(LoadAvg {
-        one: first_part.parse::<f64>().map_err(|_| "Invalid number".to_string())?,
-        five: second_part.parse::<f64>().map_err(|_| "Invalid number".to_string())?,
-        fifteen: third_part.parse::<f64>().map_err(|_| "Invalid number".to_string())?,
+        one: first_part
+            .parse::<f64>()
+            .map_err(|_| "Invalid number".to_string())?,
+        five: second_part
+            .parse::<f64>()
+            .map_err(|_| "Invalid number".to_string())?,
+        fifteen: third_part
+            .parse::<f64>()
+            .map_err(|_| "Invalid number".to_string())?,
     })
 }
 
@@ -101,15 +109,26 @@ pub fn parse_meminfo(content: &str) -> Result<MemInfo, String> {
         if line.starts_with("MemTotal:") {
             let mut parts = line.split_whitespace();
             let second_part = parts.nth(1).ok_or("No second part".to_string())?;
-            total = Some(second_part.parse::<u64>().map_err(|_| "Invalid number".to_string())?);
+            total = Some(
+                second_part
+                    .parse::<u64>()
+                    .map_err(|_| "Invalid number".to_string())?,
+            );
         } else if line.starts_with("MemAvailable:") {
             let mut parts = line.split_whitespace();
             let second_part = parts.nth(1).ok_or("No second part".to_string())?;
-            available = Some(second_part.parse::<u64>().map_err(|_| "Invalid number".to_string())?);
+            available = Some(
+                second_part
+                    .parse::<u64>()
+                    .map_err(|_| "Invalid number".to_string())?,
+            );
         }
     }
     match (total, available) {
-        (Some(total_kb), Some(available_kb)) => Ok(MemInfo { total_kb, available_kb }),
+        (Some(total_kb), Some(available_kb)) => Ok(MemInfo {
+            total_kb,
+            available_kb,
+        }),
         _ => Err("Missing MemTotal or MemAvailable in meminfo".to_string()),
     }
 }
@@ -128,10 +147,8 @@ pub struct SystemOverview {
 }
 
 impl SystemOverview {
-
     pub fn format_banner(&self) -> String {
-        
-        let uptime_str =  format_uptime(self.uptime_seconds);
+        let uptime_str = format_uptime(self.uptime_seconds);
         let mem_used = format_kb(self.memory.used_kb());
         let mem_total = format_kb(self.memory.total_kb);
         let mem_percent = self.memory.used_percent();
@@ -165,15 +182,13 @@ impl SystemOverview {
 }
 
 pub fn collect_system_overview() -> Result<SystemOverview, String> {
-    
     let uptime = read_uptime()?;
     let load = read_loadavg()?;
     let mem = read_meminfo()?;
-    Ok(
-        SystemOverview {
-            uptime_seconds: uptime, 
-            load, 
-            memory: mem,
+    Ok(SystemOverview {
+        uptime_seconds: uptime,
+        load,
+        memory: mem,
     })
 }
 
