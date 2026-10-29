@@ -451,7 +451,127 @@ Ratatui employs an immediate-mode declarative rendering model: on every frame, t
 
 ---
 
-## 15. Summary Checklist for Notion
+---
+
+## 15. Deep Dive: Core Syntax Idioms & Real-World Patterns
+
+### 15.1 Resilient Unwrapping: `if let Ok(...) = ...`
+In systems programming, distinction between **fatal errors** (which should crash or halt) and **transient operational misses** (which should be tolerated) is essential:
+- `.unwrap()` / `.expect()`: Panics and crashes the application. Never use on real-time external data like `/proc`.
+- `?` operator: Returns early from the function with `Err`. Cancels subsequent operations in the current tick.
+- `if let Ok(value) = result`: Unwraps the success variant `Ok(value)` and executes the block. If `result` is `Err(_)`, it **silently ignores the error** and moves on.
+```rust
+// If reading /proc fails momentarily, do NOT crash and do NOT abort the tick:
+if let Ok(overview) = crate::collect_system_overview() {
+    self.overview = Some(overview);
+}
+```
+
+### 15.2 State Transitions: `None` to `Some(data)`
+When a field is modeled as `Option<T>` (e.g. `pub overview: Option<SystemOverview>`):
+- At boot ($t = 0$), no data has been read yet, so `self.overview = None`.
+- Once data arrives, you cannot directly assign `T` to `Option<T>` because Rust is strictly typed.
+- Wrapping the value in the enum constructor `Some(overview)` transitions the state from "empty" to "populated":
+```rust
+self.overview = Some(overview);
+```
+
+### 15.3 Vector Allocation Mechanics: `Vec::new()` vs `Vec::with_capacity(N)`
+- `Vec::new()` initializes an empty vector with `capacity = 0`.
+  - Pushing elements causes repeated geometric reallocations (0 $\rightarrow$ 4 $\rightarrow$ 8 $\rightarrow$ 16 $\rightarrow$ 32...).
+  - Each reallocation allocates a new memory block, **copies all existing elements**, and frees the old block.
+- `Vec::with_capacity(N)` allocates exactly $N$ slots on the heap in a **single system call**:
+  - Subsequent `.push()` calls are guaranteed $O(1)$ and never trigger reallocation or memory copies.
+  - **Rule of Thumb**: Whenever the total number of items is known upfront (e.g., `raw_processes.len()`), always use `Vec::with_capacity(n)`.
+
+### 15.4 The Universal Error Pattern: `Result<(), Box<dyn std::error::Error>>`
+In application entry points (`main` and `run_app`), multiple operations can fail with completely different error types:
+- `enable_raw_mode()?` returns `std::io::Error`.
+- `num.parse::<u32>()?` returns `ParseIntError`.
+- `terminal.draw(...)?` returns `std::io::Error`.
+
+Breaking down `Result<(), Box<dyn std::error::Error>>`:
+- `()`: The Unit type (returns nothing on success).
+- `std::error::Error`: The standard trait implemented by all standard Rust errors.
+- `dyn`: Dynamic dispatch ("any type implementing the `Error` trait").
+- `Box<...>`: An 8-byte pointer on the stack pointing to the heap-allocated error, giving all different errors a uniform size at compile time.
+- **Benefit**: Any error type can be automatically propagated using `?` without writing custom error wrappers.
+
+### 15.5 Real-Time Event Polling: `event::poll(1000ms)`
+In terminal event loops, user keyboard input and periodic background refreshes must coexist:
+- **Blocking Read (`event::read()`)**: Freezes the thread indefinitely until a key is pressed. If the user does not type, system stats and CPU graphs never update!
+- **Zero-Timeout Poll (`poll(0ms)`)**: Busy-spins millions of times per second, pegging a CPU core at 100% usage.
+- **Bounded Timeout (`event::poll(Duration::from_millis(1000))`**:
+  - If a key is pressed: Wakes up immediately with 0 ms perceived latency.
+  - If no key is pressed: Times out after 1,000 ms, allowing the loop to tick, read fresh `/proc` metrics, and redraw the screen.
+
+### 15.6 Event Type Discrimination: `if let Event::Key(key) = ...`
+Terminal event listeners emit various events across user interactions:
+- `Event::Key`: Keystroke press or release.
+- `Event::Mouse`: Mouse scroll wheel, clicks, cursor movements.
+- `Event::Resize`: Terminal window resized by the user.
+- `Event::FocusGained` / `Event::FocusLost`: Terminal focus changes.
+
+`if let Event::Key(key) = event::read()?` selectively matches keyboard events, discarding mouse movements or window focus events without errors.
+
+### 15.7 Disambiguating the `||` Symbol in Rust
+The `||` symbol has two completely distinct syntactic meanings based on context:
+
+| Context | Meaning | Example |
+| :--- | :--- | :--- |
+| **Between Booleans** | **Logical OR** | `if key.code == KeyCode::Char('q') \|\| key.code == KeyCode::Esc` |
+| **Before Code Block / Expr** | **Closure Arguments** | `terminal.draw(\|f\| ui::render(f, app))` (1 arg: `f`) |
+| | | `thread::spawn(\|\| { ... })` (0 args: `\|\|`) |
+| | | `processes.sort_by(\|a, b\| a.cmp(b))` (2 args: `a`, `b`) |
+
+---
+
+## 16. Algorithmic Efficiency & Complexity Analysis in Systems Code
+
+### 16.1 First Principles of Complexity
+- **Time Complexity**: The count of elementary CPU instructions executed as input size $N$ grows.
+- **Space Complexity**: The count of **additional (auxiliary)** bytes allocated in RAM (stack or heap) as $N$ grows. Input memory does NOT count toward space complexity.
+
+### 16.2 The 4 Hidden Complexity Traps
+1. **Hidden Loops in Standard Methods ($O(N)$)**:
+   - `vec.contains(&val)` is an $O(N)$ linear scan, NOT $O(1)$.
+   - `string.to_lowercase()` scans all characters and allocates a new string: $O(L)$ time + $O(L)$ space.
+   - `args.join(" ")` iterates over all strings and allocates: $O(N)$ time + space.
+2. **Slices vs Clones**:
+   - Borrowing a slice (`&str`, `&[T]`): $O(1)$ time, $O(1)$ space (pointer + length).
+   - Cloning (`.clone()`, `.to_string()`): $O(N)$ time, $O(N)$ space (allocates on heap).
+3. **Lazy Iterators vs Eager Collectors**:
+   - `processes.iter().map(...)`: $O(1)$ time, $O(1)$ space (iterators are lazy; no computation happens).
+   - `.collect()`: $O(N)$ time, $O(N)$ space (drives the iterator and allocates the container).
+4. **Lookup Structures**:
+   - `Vec::contains(&x)`: $O(N)$ linear scan.
+   - `HashSet::contains(&x)` / `HashMap::get(&x)`: $O(1)$ amortized hash bucket lookup.
+
+### 16.3 Real-World Systems Data Structures & Algorithms
+- **Pattern-Defeating Quicksort (`pdqsort`)**:
+  Rust's slice sort is $O(N \log N)$ average, but adapts to **$O(N)$ linear time on nearly-sorted data**. In a live process monitor, processes between consecutive seconds are 95% pre-sorted, making sort ticks lightning-fast.
+- **Schwartzian Transform (`sort_by_key`)**:
+  Pre-evaluates the sort key once per element ($O(N)$ evaluations) instead of recomputing inside comparisons ($O(N \log N)$ comparisons). Saves thousands of string allocations per second.
+- **Two-Pointer Compaction (`HashMap::retain`)**:
+  Prunes dead PIDs from hash maps in-place in $O(N)$ time and $O(1)$ auxiliary space without reallocating a new map.
+- **Cache Locality**:
+  Contiguous `Vec<ProcessRow>` stores rows consecutively in memory, maximizing CPU L1/L2 cache prefetching (64-byte cache lines) compared to pointer-chasing node trees.
+
+### 16.4 The "3-Question Rule" for Instant Complexity Classification
+1. **Does it loop?**
+   - No $\rightarrow$ **$O(1)$** (Math, array indexing, hash lookup).
+   - Yes $\rightarrow$ Proceed to Question 2.
+2. **Does it divide the problem space in half?**
+   - Yes $\rightarrow$ **$O(\log N)$** (Binary search, tree navigation).
+   - No $\rightarrow$ Proceed to Question 3.
+3. **Are the loops nested?**
+   - Single pass $\rightarrow$ **$O(N)$** (Linear loop, `.collect()`, `.to_string()`).
+   - Divide-and-conquer $\rightarrow$ **$O(N \log N)$** (`pdqsort`, mergesort).
+   - Loop inside loop $\rightarrow$ **$O(N^2)$** (Nested loops, `.contains()` on a Vec inside a loop).
+
+---
+
+## 17. Summary Checklist for Notion
 
 - [x] **Ownership**: Data has one owner; moving transfers ownership unless `Copy`.
 - [x] **Borrowing**: Prefer `&str` over `String` in function arguments for zero-copy efficiency.
@@ -477,6 +597,16 @@ Ratatui employs an immediate-mode declarative rendering model: on every frame, t
 - [x] **Expression Return Binding**: Binding `let val = if ... { ... } else { ... };` across lexical blocks.
 - [x] **Declarative Layouts**: Partitioning screens with `Layout`, `Constraint::Length`, and `Constraint::Min`.
 - [x] **Stateful Widget Scrolling**: Automatic table scrolling via `TableState` and `render_stateful_widget`.
+- [x] **Transient Tolerance**: Using `if let Ok` for non-fatal background polling.
+- [x] **Option State Transitions**: Wrapping data in `Some(val)` to transition from `None`.
+- [x] **Allocation Pre-sizing**: Using `Vec::with_capacity(N)` to avoid heap reallocations.
+- [x] **Universal Error Objects**: Using `Result<(), Box<dyn std::error::Error>>` for multi-error propagation.
+- [x] **Non-Blocking Polling**: Using `event::poll(Duration)` to interleave UI ticks with key inputs.
+- [x] **Closure vs Logic Disambiguation**: Differentiating logical `||` from closure arguments `|...|`.
+- [x] **Hidden Complexity Awareness**: Identifying hidden $O(N)$ operations in standard library methods.
+- [x] **Adaptive Sorting Exploitation**: Leveraging `pdqsort`'s $O(N)$ best-case on nearly sorted data.
+- [x] **The 3-Question Rule**: Instantly classifying algorithmic time and space complexity.
+
 
 
 

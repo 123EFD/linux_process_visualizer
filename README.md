@@ -131,29 +131,45 @@ flowchart TD
 
 ## Getting Started
 
-### Prerequisites
+### Option 1: Direct Download (No Rust Required)
 
+You can download the pre-compiled binary directly from the [GitHub Releases](https://github.com/123EFD/linux_process_visualizer/releases) page:
+
+```bash
+# 1. Download and extract the latest release archive:
+curl -sSL https://github.com/123EFD/linux_process_visualizer/releases/latest/download/procscope-linux-x86_64.tar.gz | tar -xz
+
+# 2. Install to your system PATH:
+sudo install -m 755 procscope /usr/local/bin/
+
+# 3. Launch from anywhere!
+procscope
+```
+
+*(Alternatively, download `procscope-linux-x86_64.zip` from the release page, unzip it, and double-click or run `./procscope`.)*
+
+---
+
+### Option 2: Build From Source
+
+#### Prerequisites
 - A Linux operating system (Ubuntu, Debian, Fedora, Arch, WSL2, etc.).
 - [Rust toolchain](https://rustup.rs/) (edition 2024 or 1.80+).
 
-### Installation & Running
+```bash
+# 1. Clone the repository:
+git clone https://github.com/123EFD/linux_process_visualizer.git
+cd linux_process_visualizer
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/123EFD/linux_process_visualizer.git
-   cd linux_process_visualizer
-   ```
+# 2. Build optimized release binary:
+cargo build --release
 
-2. **Run in development mode**:
-   ```bash
-   cargo run
-   ```
+# 3. Install globally to /usr/local/bin:
+sudo install -m 755 target/release/procscope /usr/local/bin/
 
-3. **Build optimized release binary**:
-   ```bash
-   cargo build --release
-   ./target/release/linux_process_visualizer
-   ```
+# 4. Run:
+procscope
+```
 
 ---
 

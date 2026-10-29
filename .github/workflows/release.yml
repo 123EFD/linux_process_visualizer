@@ -1,0 +1,44 @@
+name: Release Binary
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build & Release Binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package archives (.tar.gz and .zip)
+        run: |
+          mkdir -p staging
+          cp target/release/procscope staging/
+          cp README.md LICENSE staging/
+          cd staging
+          tar -czvf ../procscope-linux-x86_64.tar.gz *
+          zip -r ../procscope-linux-x86_64.zip *
+          cd ..
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            procscope-linux-x86_64.tar.gz
+            procscope-linux-x86_64.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
